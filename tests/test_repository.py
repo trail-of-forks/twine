@@ -429,7 +429,10 @@ def test_get_transparency_url_no_legacy_suffix():
     )
 
     url = repo._get_transparency_url(package)
-    assert url == "https://custom.example.com/upload/transparency/pkg/2.0.0/pkg-2.0.0.whl/info"
+    assert (
+        url
+        == "https://custom.example.com/upload/transparency/pkg/2.0.0/pkg-2.0.0.whl/info"
+    )
 
 
 def test_verify_package_integrity_does_nothing_when_disabled(default_repo):

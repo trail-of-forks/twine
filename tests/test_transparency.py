@@ -21,7 +21,6 @@ from twine import exceptions
 from twine import repository
 from twine import utils
 
-
 # --- URL Construction Tests ---
 
 
@@ -265,9 +264,7 @@ def test_fetch_transparency_info_404():
         transparency_enabled=True,
     )
 
-    repo.session = pretend.stub(
-        get=lambda url, headers: pretend.stub(status_code=404)
-    )
+    repo.session = pretend.stub(get=lambda url, headers: pretend.stub(status_code=404))
 
     package = pretend.stub(
         safe_name="pkg",
@@ -275,9 +272,7 @@ def test_fetch_transparency_info_404():
         basefilename="pkg-1.0.0.tar.gz",
     )
 
-    with pytest.raises(
-        exceptions.TransparencyVerificationError, match="HTTP 404"
-    ):
+    with pytest.raises(exceptions.TransparencyVerificationError, match="HTTP 404"):
         repo._fetch_transparency_info(package)
 
 
@@ -290,9 +285,7 @@ def test_fetch_transparency_info_500():
         transparency_enabled=True,
     )
 
-    repo.session = pretend.stub(
-        get=lambda url, headers: pretend.stub(status_code=500)
-    )
+    repo.session = pretend.stub(get=lambda url, headers: pretend.stub(status_code=500))
 
     package = pretend.stub(
         safe_name="pkg",
@@ -300,9 +293,7 @@ def test_fetch_transparency_info_500():
         basefilename="pkg-1.0.0.tar.gz",
     )
 
-    with pytest.raises(
-        exceptions.TransparencyVerificationError, match="HTTP 500"
-    ):
+    with pytest.raises(exceptions.TransparencyVerificationError, match="HTTP 500"):
         repo._fetch_transparency_info(package)
 
 
