@@ -61,6 +61,7 @@ class Settings:
         repository_url: Optional[str] = None,
         verbose: bool = False,
         disable_progress_bar: bool = False,
+        transparency_enabled: Optional[bool] = None,
         **ignored_kwargs: Any,
     ) -> None:
         """Initialize our settings instance.
@@ -107,6 +108,8 @@ class Settings:
             Show verbose output.
         :param disable_progress_bar:
             Disable the progress bar.
+        :param transparency_enabled:
+            Verify uploaded packages against binary transparency log.
         """
         self.config_file = config_file
         self.comment = comment
@@ -116,6 +119,10 @@ class Settings:
         self._handle_repository_options(
             repository_name=repository_name,
             repository_url=repository_url,
+        )
+        self.transparency_enabled = utils.get_transparency_enabled(
+            transparency_enabled,
+            self.repository_config,
         )
         self.attestations = attestations
         self._handle_package_signing(
@@ -278,6 +285,14 @@ class Settings:
             action="store_true",
             help="Disable the progress bar.",
         )
+        parser.add_argument(
+            "--transparency",
+            default=None,
+            required=False,
+            action="store_true",
+            dest="transparency_enabled",
+            help="Verify uploaded packages against binary transparency log.",
+        )
 
     @classmethod
     def from_argparse(cls, args: argparse.Namespace) -> "Settings":
@@ -354,6 +369,7 @@ class Settings:
             self.username,
             self.password,
             self.disable_progress_bar,
+            transparency_enabled=self.transparency_enabled,
         )
         repo.set_certificate_authority(self.cacert)
         repo.set_client_certificate(self.client_cert)

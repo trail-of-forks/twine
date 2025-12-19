@@ -173,3 +173,38 @@ class InvalidPyPIUploadURL(TwineException):
     """
 
     pass
+
+
+class TransparencyVerificationError(TwineException):
+    """Raised when binary transparency verification fails.
+
+    This can occur when:
+    - The transparency endpoint is unreachable
+    - The checksum in the log doesn't match the uploaded package
+    - The filename in the log doesn't match the uploaded package
+    """
+
+    @classmethod
+    def checksum_mismatch(
+        cls, expected: str, actual: str
+    ) -> "TransparencyVerificationError":
+        """Create an exception for checksum mismatch."""
+        return cls(
+            f"Transparency verification failed: checksum mismatch. "
+            f"Expected {expected}, got {actual}"
+        )
+
+    @classmethod
+    def filename_mismatch(
+        cls, expected: str, actual: str
+    ) -> "TransparencyVerificationError":
+        """Create an exception for filename mismatch."""
+        return cls(
+            f"Transparency verification failed: filename mismatch. "
+            f"Expected {expected}, got {actual}"
+        )
+
+    @classmethod
+    def fetch_failed(cls, url: str, reason: str) -> "TransparencyVerificationError":
+        """Create an exception for failed transparency data fetch."""
+        return cls(f"Failed to fetch transparency data from {url}: {reason}")

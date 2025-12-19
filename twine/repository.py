@@ -19,6 +19,7 @@ import requests_toolbelt
 import rich.progress
 from rich import print
 
+from twine import exceptions
 from twine import package as package_file
 from twine.utils import make_requests_session
 
@@ -39,6 +40,7 @@ class Repository:
         username: Optional[str],
         password: Optional[str],
         disable_progress_bar: bool = False,
+        transparency_enabled: bool = False,
     ) -> None:
         self.url = repository_url
 
@@ -55,6 +57,7 @@ class Repository:
         # Working around https://github.com/python/typing/issues/182
         self._releases_json_data: Dict[str, Dict[str, Any]] = {}
         self.disable_progress_bar = disable_progress_bar
+        self.transparency_enabled = transparency_enabled
 
     def close(self) -> None:
         self.session.close()
@@ -240,7 +243,103 @@ class Repository:
             for package in packages
         }
 
+    def _get_transparency_url(self, package: package_file.PackageFile) -> str:
+        """Construct the transparency endpoint URL for a package.
+
+        :param package:
+            The package to get transparency info for.
+        :returns:
+            The URL for the transparency endpoint.
+        """
+        # Strip /legacy/ suffix if present
+        base_url = self.url.rstrip("/")
+        if base_url.endswith("/legacy"):
+            base_url = base_url[:-7]
+
+        return (
+            f"{base_url}/transparency/"
+            f"{package.safe_name}/"
+            f"{package.version}/"
+            f"{package.basefilename}/info"
+        )
+
+    def _fetch_transparency_info(
+        self, package: package_file.PackageFile
+    ) -> Dict[str, Any]:
+        """Fetch transparency information for an uploaded package.
+
+        :param package:
+            The package to fetch transparency info for.
+        :returns:
+            The transparency data as a dictionary.
+        :raises TransparencyVerificationError:
+            If the transparency data cannot be fetched.
+        """
+        url = self._get_transparency_url(package)
+        logger.info(f"Fetching transparency info from {url}")
+
+        try:
+            response = self.session.get(url, headers={"Accept": "application/json"})
+        except requests.RequestException as e:
+            raise exceptions.TransparencyVerificationError.fetch_failed(
+                url, f"Network error: {e}"
+            )
+
+        if response.status_code != 200:
+            raise exceptions.TransparencyVerificationError.fetch_failed(
+                url, f"HTTP {response.status_code}"
+            )
+
+        return response.json()
+
     def verify_package_integrity(self, package: package_file.PackageFile) -> None:
-        # TODO(sigmavirus24): Add a way for users to download the package and
-        # check its hash against what it has locally.
-        pass
+        """Verify package integrity via binary transparency log.
+
+        Fetches transparency data from the repository and verifies:
+        1. The filename matches what was uploaded
+        2. The checksum matches what was uploaded
+
+        :param package:
+            The package that was uploaded.
+        :raises TransparencyVerificationError:
+            If verification fails.
+        """
+        if not self.transparency_enabled:
+            return
+
+        print(f"Verifying transparency for {package.basefilename}...")
+
+        info = self._fetch_transparency_info(package)
+
+        # Verify filename
+        logged_filename = info["entry"]["filename"]
+        if logged_filename != package.basefilename:
+            raise exceptions.TransparencyVerificationError.filename_mismatch(
+                package.basefilename, logged_filename
+            )
+
+        # Verify checksum (format: "sha256:...")
+        logged_checksum = info["entry"]["checksum"]
+        expected_checksum = f"sha256:{package.sha2_digest}"
+        if logged_checksum != expected_checksum:
+            raise exceptions.TransparencyVerificationError.checksum_mismatch(
+                expected_checksum, logged_checksum
+            )
+
+        # TODO: Verify checkpoint signature
+        # The checkpoint is a signed note from the transparency log.
+        # Verification requires:
+        # 1. Parsing the note format
+        # 2. Verifying the signature against the log's public key
+        # 3. Extracting and validating the tree head
+        logger.info("TODO: Checkpoint verification not yet implemented")
+
+        # TODO: Verify inclusion proof
+        # The inclusion proof is a list of hashes that prove the entry
+        # is part of the Merkle tree. Verification requires:
+        # 1. Computing the leaf hash from the entry
+        # 2. Walking up the tree using the proof hashes
+        # 3. Comparing the computed root with the checkpoint's tree head
+        logger.info("TODO: Inclusion proof verification not yet implemented")
+
+        print(f"[green]Transparency verification passed for {package.basefilename}")

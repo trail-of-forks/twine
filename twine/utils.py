@@ -96,6 +96,7 @@ def get_config(path: str) -> Dict[str, RepositoryConfig]:
             "password",
             "ca_cert",
             "client_cert",
+            "transparency_enabled",
         ]:
             if parser.has_option(repository, key):
                 config[repository][key] = parser.get(repository, key)
@@ -313,6 +314,30 @@ get_cacert = functools.partial(get_userpass_value, key="ca_cert")
 
 #: Get the client certificate via :func:`get_userpass_value`.
 get_clientcert = functools.partial(get_userpass_value, key="client_cert")
+
+
+def get_transparency_enabled(
+    cli_value: Optional[bool],
+    config: RepositoryConfig,
+) -> bool:
+    """Determine if transparency verification is enabled.
+
+    Priority: CLI > config file > default (False)
+
+    :param cli_value:
+        The value supplied from the command line (--transparency flag).
+    :param config:
+        A dictionary of repository configuration values.
+
+    :return:
+        True if transparency verification should be performed.
+    """
+    if cli_value is not None:
+        return cli_value
+    config_value = config.get("transparency_enabled")
+    if config_value is not None:
+        return config_value.lower() in ("true", "yes", "1")
+    return False
 
 
 def make_requests_session() -> requests.Session:

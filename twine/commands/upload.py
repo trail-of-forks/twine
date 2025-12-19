@@ -215,6 +215,9 @@ def upload(upload_settings: settings.Settings, dists: List[str]) -> None:
 
         utils.check_status_code(resp, upload_settings.verbose)
 
+        # Verify binary transparency if enabled
+        repository.verify_package_integrity(package)
+
         uploaded_packages.append(package)
 
     release_urls = repository.release_urls(uploaded_packages)
