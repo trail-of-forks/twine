@@ -48,6 +48,7 @@ def stub_repository(stub_response):
         upload=pretend.call_recorder(lambda package: stub_response),
         close=lambda: None,
         release_urls=lambda packages: set(),
+        verify_package_integrity=lambda package: None,
     )
 
 
@@ -598,3 +599,61 @@ def test_upload_warns_attestations_non_pypi(upload_settings, caplog, stub_respon
         "failures, remove the --attestations flag and re-try this command"
         in caplog.messages
     )
+
+
+# --- Binary Transparency Verification Tests ---
+
+
+def test_upload_calls_verify_package_integrity(upload_settings, stub_repository):
+    """Call verify_package_integrity after each successful upload."""
+    stub_repository.verify_package_integrity = pretend.call_recorder(lambda p: None)
+
+    upload.upload(upload_settings, [helpers.WHEEL_FIXTURE])
+
+    # Verify it was called once per package
+    assert len(stub_repository.verify_package_integrity.calls) == 1
+    assert (
+        stub_repository.verify_package_integrity.calls[0].args[0].basefilename
+        == "twine-1.5.0-py2.py3-none-any.whl"
+    )
+
+
+def test_upload_calls_verify_for_multiple_packages(upload_settings, stub_repository):
+    """Call verify_package_integrity for each uploaded package."""
+    stub_repository.verify_package_integrity = pretend.call_recorder(lambda p: None)
+
+    upload.upload(
+        upload_settings,
+        [helpers.WHEEL_FIXTURE, helpers.NEW_WHEEL_FIXTURE],
+    )
+
+    # Verify it was called once per package
+    assert len(stub_repository.verify_package_integrity.calls) == 2
+
+
+def test_upload_fails_on_transparency_verification_error(
+    upload_settings, stub_repository
+):
+    """Fail upload when transparency verification fails."""
+
+    def raise_transparency_error(package):
+        raise exceptions.TransparencyVerificationError("Checksum mismatch")
+
+    stub_repository.verify_package_integrity = raise_transparency_error
+
+    with pytest.raises(
+        exceptions.TransparencyVerificationError, match="Checksum mismatch"
+    ):
+        upload.upload(upload_settings, [helpers.WHEEL_FIXTURE])
+
+
+def test_upload_skipped_package_not_verified(upload_settings, stub_repository):
+    """Don't call verify_package_integrity for skipped packages."""
+    upload_settings.skip_existing = True
+    stub_repository.package_is_uploaded = lambda package: True
+    stub_repository.verify_package_integrity = pretend.call_recorder(lambda p: None)
+
+    upload.upload(upload_settings, [helpers.WHEEL_FIXTURE])
+
+    # Should NOT be called for skipped packages
+    assert len(stub_repository.verify_package_integrity.calls) == 0

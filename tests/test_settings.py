@@ -202,3 +202,62 @@ class TestArgumentParsing:
     def test_attestations_flag(self):
         args = self.parse_args(["--attestations"])
         assert args.attestations
+
+    def test_transparency_flag(self):
+        args = self.parse_args(["--transparency"])
+        assert args.transparency_enabled
+
+    def test_transparency_flag_default_false(self):
+        args = self.parse_args([])
+        assert not args.transparency_enabled
+
+
+# --- Binary Transparency Configuration Tests ---
+
+
+def test_transparency_enabled_default_false(make_settings):
+    """transparency_enabled defaults to False."""
+    s = make_settings()
+    assert s.transparency_enabled is False
+
+
+def test_transparency_enabled_from_pypirc(write_config_file):
+    """Read transparency_enabled from .pypirc config."""
+    config_file = write_config_file(
+        """
+        [pypi]
+        username:foo
+        password:bar
+        transparency_enabled:true
+        """
+    )
+    s = settings.Settings(config_file=config_file)
+    assert s.transparency_enabled is True
+
+
+def test_transparency_enabled_from_pypirc_false(write_config_file):
+    """Read transparency_enabled=false from .pypirc config."""
+    config_file = write_config_file(
+        """
+        [pypi]
+        username:foo
+        password:bar
+        transparency_enabled:false
+        """
+    )
+    s = settings.Settings(config_file=config_file)
+    assert s.transparency_enabled is False
+
+
+def test_transparency_enabled_kwarg_overrides_config(write_config_file):
+    """CLI --transparency flag overrides config file setting."""
+    config_file = write_config_file(
+        """
+        [pypi]
+        username:foo
+        password:bar
+        transparency_enabled:false
+        """
+    )
+    s = settings.Settings(config_file=config_file, transparency_enabled=True)
+    assert s.transparency_enabled is True

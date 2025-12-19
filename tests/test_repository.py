@@ -367,3 +367,75 @@ def test_logs_username_and_password(username, password, messages, caplog):
     )
 
     assert caplog.messages == messages
+
+
+# --- Binary Transparency Tests ---
+
+
+def test_transparency_enabled_defaults_to_false():
+    """transparency_enabled defaults to False."""
+    repo = repository.Repository(
+        repository_url=utils.DEFAULT_REPOSITORY,
+        username="u",
+        password="p",
+    )
+    assert repo.transparency_enabled is False
+
+
+def test_transparency_enabled_can_be_set():
+    """transparency_enabled can be set to True."""
+    repo = repository.Repository(
+        repository_url=utils.DEFAULT_REPOSITORY,
+        username="u",
+        password="p",
+        transparency_enabled=True,
+    )
+    assert repo.transparency_enabled is True
+
+
+def test_get_transparency_url_strips_legacy_suffix():
+    """Construct correct URL by stripping /legacy/ suffix."""
+    repo = repository.Repository(
+        repository_url="https://upload.pypi.org/legacy/",
+        username="u",
+        password="p",
+        transparency_enabled=True,
+    )
+    package = pretend.stub(
+        safe_name="mypackage",
+        version="1.0.0",
+        basefilename="mypackage-1.0.0.tar.gz",
+    )
+
+    url = repo._get_transparency_url(package)
+    assert url == (
+        "https://upload.pypi.org/transparency/mypackage/1.0.0/"
+        "mypackage-1.0.0.tar.gz/info"
+    )
+
+
+def test_get_transparency_url_no_legacy_suffix():
+    """Handle repository URL without /legacy/ suffix."""
+    repo = repository.Repository(
+        repository_url="https://custom.example.com/upload/",
+        username="u",
+        password="p",
+        transparency_enabled=True,
+    )
+    package = pretend.stub(
+        safe_name="pkg",
+        version="2.0.0",
+        basefilename="pkg-2.0.0.whl",
+    )
+
+    url = repo._get_transparency_url(package)
+    assert url == "https://custom.example.com/upload/transparency/pkg/2.0.0/pkg-2.0.0.whl/info"
+
+
+def test_verify_package_integrity_does_nothing_when_disabled(default_repo):
+    """Skip verification when transparency_enabled is False."""
+    package = pretend.stub(basefilename="fake.whl")
+
+    # Should not raise, should do nothing
+    # If it tried to make HTTP calls, it would fail
+    default_repo.verify_package_integrity(package)
