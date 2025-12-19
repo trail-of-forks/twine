@@ -336,7 +336,16 @@ def get_transparency_enabled(
         return cli_value
     config_value = config.get("transparency_enabled")
     if config_value is not None:
-        return config_value.lower() in ("true", "yes", "1")
+        if isinstance(config_value, bool):
+            return config_value
+        if isinstance(config_value, str):
+            return config_value.lower() in ("true", "yes", "1")
+        # Invalid type - log warning and default to False
+        logger.warning(
+            f"Invalid type for transparency_enabled in config: "
+            f"{type(config_value).__name__}. Expected bool or string. "
+            "Defaulting to False."
+        )
     return False
 
 

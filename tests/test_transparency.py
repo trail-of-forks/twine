@@ -321,6 +321,126 @@ def test_fetch_transparency_info_network_error():
         repo._fetch_transparency_info(package)
 
 
+# --- Response Validation Tests ---
+
+
+def test_fetch_transparency_info_invalid_json():
+    """Raise TransparencyVerificationError on invalid JSON response."""
+    repo = repository.Repository(
+        repository_url=utils.DEFAULT_REPOSITORY,
+        username="u",
+        password="p",
+        transparency_enabled=True,
+    )
+
+    def raise_json_error():
+        raise ValueError("Invalid JSON")
+
+    repo.session = pretend.stub(
+        get=lambda url, headers: pretend.stub(status_code=200, json=raise_json_error)
+    )
+
+    package = pretend.stub(
+        safe_name="pkg",
+        version="1.0.0",
+        basefilename="pkg-1.0.0.tar.gz",
+    )
+
+    with pytest.raises(
+        exceptions.TransparencyVerificationError, match="Invalid JSON response"
+    ):
+        repo._fetch_transparency_info(package)
+
+
+def test_verify_transparency_missing_entry_field():
+    """Raise TransparencyVerificationError when 'entry' field is missing."""
+    repo = repository.Repository(
+        repository_url=utils.DEFAULT_REPOSITORY,
+        username="u",
+        password="p",
+        transparency_enabled=True,
+    )
+
+    package = pretend.stub(
+        safe_name="pkg",
+        version="1.0.0",
+        basefilename="pkg-1.0.0.tar.gz",
+        sha2_digest="abc123",
+    )
+
+    # Response missing 'entry' field
+    repo.session = pretend.stub(
+        get=lambda url, headers: pretend.stub(
+            status_code=200, json=lambda: {"version": 1, "log_origin": "test"}
+        )
+    )
+
+    with pytest.raises(
+        exceptions.TransparencyVerificationError, match="missing 'entry' field"
+    ):
+        repo.verify_package_integrity(package)
+
+
+def test_verify_transparency_missing_filename_field():
+    """Raise TransparencyVerificationError when 'entry.filename' is missing."""
+    repo = repository.Repository(
+        repository_url=utils.DEFAULT_REPOSITORY,
+        username="u",
+        password="p",
+        transparency_enabled=True,
+    )
+
+    package = pretend.stub(
+        safe_name="pkg",
+        version="1.0.0",
+        basefilename="pkg-1.0.0.tar.gz",
+        sha2_digest="abc123",
+    )
+
+    # Response missing 'filename' in entry
+    repo.session = pretend.stub(
+        get=lambda url, headers: pretend.stub(
+            status_code=200,
+            json=lambda: {"entry": {"checksum": "sha256:abc123"}},
+        )
+    )
+
+    with pytest.raises(
+        exceptions.TransparencyVerificationError, match="missing 'entry.filename' field"
+    ):
+        repo.verify_package_integrity(package)
+
+
+def test_verify_transparency_missing_checksum_field():
+    """Raise TransparencyVerificationError when 'entry.checksum' is missing."""
+    repo = repository.Repository(
+        repository_url=utils.DEFAULT_REPOSITORY,
+        username="u",
+        password="p",
+        transparency_enabled=True,
+    )
+
+    package = pretend.stub(
+        safe_name="pkg",
+        version="1.0.0",
+        basefilename="pkg-1.0.0.tar.gz",
+        sha2_digest="abc123",
+    )
+
+    # Response missing 'checksum' in entry
+    repo.session = pretend.stub(
+        get=lambda url, headers: pretend.stub(
+            status_code=200,
+            json=lambda: {"entry": {"filename": "pkg-1.0.0.tar.gz"}},
+        )
+    )
+
+    with pytest.raises(
+        exceptions.TransparencyVerificationError, match="missing 'entry.checksum' field"
+    ):
+        repo.verify_package_integrity(package)
+
+
 # --- Disabled By Default Tests ---
 
 

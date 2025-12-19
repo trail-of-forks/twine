@@ -290,7 +290,12 @@ class Repository:
                 url, f"HTTP {response.status_code}"
             )
 
-        return response.json()
+        try:
+            return response.json()
+        except ValueError as e:
+            raise exceptions.TransparencyVerificationError.fetch_failed(
+                url, f"Invalid JSON response: {e}"
+            )
 
     def verify_package_integrity(self, package: package_file.PackageFile) -> None:
         """Verify package integrity via binary transparency log.
@@ -311,6 +316,20 @@ class Repository:
 
         info = self._fetch_transparency_info(package)
 
+        # Validate response structure
+        if "entry" not in info:
+            raise exceptions.TransparencyVerificationError(
+                "Invalid transparency response: missing 'entry' field"
+            )
+        if "filename" not in info["entry"]:
+            raise exceptions.TransparencyVerificationError(
+                "Invalid transparency response: missing 'entry.filename' field"
+            )
+        if "checksum" not in info["entry"]:
+            raise exceptions.TransparencyVerificationError(
+                "Invalid transparency response: missing 'entry.checksum' field"
+            )
+
         # Verify filename
         logged_filename = info["entry"]["filename"]
         if logged_filename != package.basefilename:
@@ -319,6 +338,10 @@ class Repository:
             )
 
         # Verify checksum (format: "sha256:...")
+        # Note: The 'publisher' field is intentionally not verified because
+        # it may be populated asynchronously or vary based on the upload method
+        # (e.g., trusted publishing vs username/password). Only filename and
+        # checksum provide strong cryptographic guarantees of package identity.
         logged_checksum = info["entry"]["checksum"]
         expected_checksum = f"sha256:{package.sha2_digest}"
         if logged_checksum != expected_checksum:
@@ -332,7 +355,7 @@ class Repository:
         # 1. Parsing the note format
         # 2. Verifying the signature against the log's public key
         # 3. Extracting and validating the tree head
-        logger.info("TODO: Checkpoint verification not yet implemented")
+        logger.debug("TODO: Checkpoint verification not yet implemented")
 
         # TODO: Verify inclusion proof
         # The inclusion proof is a list of hashes that prove the entry
@@ -340,6 +363,6 @@ class Repository:
         # 1. Computing the leaf hash from the entry
         # 2. Walking up the tree using the proof hashes
         # 3. Comparing the computed root with the checkpoint's tree head
-        logger.info("TODO: Inclusion proof verification not yet implemented")
+        logger.debug("TODO: Inclusion proof verification not yet implemented")
 
         print(f"[green]Transparency verification passed for {package.basefilename}")
