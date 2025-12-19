@@ -338,16 +338,14 @@ class Repository:
             )
 
         # Verify checksum (format: "sha256:...")
-        # Note: The 'publisher' field is intentionally not verified because
-        # it may be populated asynchronously or vary based on the upload method
-        # (e.g., trusted publishing vs username/password). Only filename and
-        # checksum provide strong cryptographic guarantees of package identity.
         logged_checksum = info["entry"]["checksum"]
         expected_checksum = f"sha256:{package.sha2_digest}"
         if logged_checksum != expected_checksum:
             raise exceptions.TransparencyVerificationError.checksum_mismatch(
                 expected_checksum, logged_checksum
             )
+        
+        # TODO: Verify identity/publisher
 
         # TODO: Verify checkpoint signature
         # The checkpoint is a signed note from the transparency log.
