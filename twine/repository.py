@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import base64
 import logging
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -18,10 +19,13 @@ import requests
 import requests_toolbelt
 import rich.progress
 from rich import print
+from pydantic import ValidationError
 
 from twine import exceptions
 from twine import package as package_file
 from twine.utils import make_requests_session
+
+from pypi_transparency import TransparencyEntry, TransparencyError, Checkpoint, Verifier, verify_checkpoint, verify_inclusion_proof, SignatureAlgorithm
 
 LEGACY_PYPI = "https://pypi.python.org/"
 LEGACY_TEST_PYPI = "https://testpypi.python.org/"
@@ -315,52 +319,55 @@ class Repository:
         print(f"Verifying transparency for {package.basefilename}...")
 
         info = self._fetch_transparency_info(package)
-
         # Validate response structure
         if "entry" not in info:
             raise exceptions.TransparencyVerificationError(
                 "Invalid transparency response: missing 'entry' field"
             )
-        if "filename" not in info["entry"]:
+
+        try:
+            entry = TransparencyEntry.model_validate(info["entry"])
+        except ValidationError as e:
             raise exceptions.TransparencyVerificationError(
-                "Invalid transparency response: missing 'entry.filename' field"
-            )
-        if "checksum" not in info["entry"]:
-            raise exceptions.TransparencyVerificationError(
-                "Invalid transparency response: missing 'entry.checksum' field"
-            )
+                f"Invalid transparency response"
+            ) from e
 
         # Verify filename
-        logged_filename = info["entry"]["filename"]
-        if logged_filename != package.basefilename:
+        if entry.filename != package.basefilename:
             raise exceptions.TransparencyVerificationError.filename_mismatch(
-                package.basefilename, logged_filename
+                package.basefilename, entry.filename
             )
 
         # Verify checksum (format: "sha256:...")
-        logged_checksum = info["entry"]["checksum"]
         expected_checksum = f"sha256:{package.sha2_digest}"
-        if logged_checksum != expected_checksum:
+        if entry.checksum != expected_checksum:
             raise exceptions.TransparencyVerificationError.checksum_mismatch(
-                expected_checksum, logged_checksum
+                expected_checksum, entry.checksum
             )
         
-        # TODO: Verify identity/publisher
+        # TODO: Verify identity/publisher field
 
-        # TODO: Verify checkpoint signature
-        # The checkpoint is a signed note from the transparency log.
-        # Verification requires:
-        # 1. Parsing the note format
-        # 2. Verifying the signature against the log's public key
-        # 3. Extracting and validating the tree head
-        logger.debug("TODO: Checkpoint verification not yet implemented")
+        public_key_str = "v6RPMY78TSmluzggvyuRkg+m2DEfS2jRafdLKC5S9E4="
+        public_key = base64.b64decode(public_key_str)
+        witness_public_key_str = "Q3e5i7y9ZmWYN2Y99jyOUXGXuCMWD/UgubzEG1wExiI="
+        witness_public_key = base64.b64decode(witness_public_key_str)
 
-        # TODO: Verify inclusion proof
-        # The inclusion proof is a list of hashes that prove the entry
-        # is part of the Merkle tree. Verification requires:
-        # 1. Computing the leaf hash from the entry
-        # 2. Walking up the tree using the proof hashes
-        # 3. Comparing the computed root with the checkpoint's tree head
-        logger.debug("TODO: Inclusion proof verification not yet implemented")
+        log_verifier = Verifier(origin="binarytransparency.log/example", public_key=public_key)
+        witness_keys = [
+            Verifier(origin="witness.log/example", public_key=witness_public_key, algorithm=SignatureAlgorithm.TIMESTAMPED_ED25519)
+        ]
+        witness_threshold = 1
+
+        checkpoint = Checkpoint.parse(base64.b64decode(info["checkpoint"]).decode("utf-8"))
+        inclusion_proof = [base64.b64decode(hash) for hash in info["inclusion_proof"]]
+        try:
+            entry_index = int(info["entry_index"])
+        except ValueError:
+            raise exceptions.TransparencyVerificationError(
+                "Invalid transparency response: invalid 'entry_index' field"
+            )
+
+        verify_checkpoint(checkpoint, log_verifier, witness_keys, witness_threshold)
+        verify_inclusion_proof(entry, entry_index, inclusion_proof, checkpoint)
 
         print(f"[green]Transparency verification passed for {package.basefilename}")

@@ -42,6 +42,7 @@ dependencies = [
 	"rich >= 12.0.0",
 	"packaging >= 24.0",
 	"id",
+	"pypi-transparency",
 ]
 dynamic = ["version"]
 
@@ -78,3 +79,6 @@ filename = "docs/changelog.rst"
 directory = "changelog"
 issue_format = "`#{issue} <https://github.com/pypa/twine/issues/{issue}>`_"
 underlines = ["-", "^"]
+
+[tool.uv.sources]
+pypi-transparency = { path = "../pypi-transparency", editable = true }
