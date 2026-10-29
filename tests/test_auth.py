@@ -474,13 +474,13 @@ def test_github_permission_error_recommends_id_token_write(monkeypatch, config):
     monkeypatch.setattr(auth.utils, "make_requests_session", make_session)
     res = auth.Resolver(config, auth.CredentialInput(username="__token__"))
 
-    with pytest.raises(exceptions.TrustedPublishingFailure) as exc_info:
+    with pytest.raises(
+        exceptions.TrustedPublishingFailure,
+        match=(
+            r"(?s)for trusted publishing\.\n\nGitHub: missing"
+            r".*id-token: write"
+            r".*https://docs\.pypi\.org/trusted-publishers"
+            r"/using-a-publisher/#github-actions"
+        ),
+    ):
         res.make_trusted_publishing_token()
-
-    message = str(exc_info.value)
-    assert "for trusted publishing.\n\nGitHub: missing" in message
-    assert "id-token: write" in message
-    assert (
-        "https://docs.pypi.org/trusted-publishers/using-a-publisher/#github-actions"
-        in message
-    )
