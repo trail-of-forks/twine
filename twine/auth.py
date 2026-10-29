@@ -173,10 +173,10 @@ class Resolver:
 
         try:
             oidc_token = detect_credential(audience)
-        except GitHubOidcPermissionCredentialError as e:
+        except GitHubOidcPermissionCredentialError as cred_lookup_err:
             raise exceptions.TrustedPublishingFailure.from_github_permission_error(
-                e
-            ) from e
+                cred_lookup_err,
+            ) from cred_lookup_err
         except AmbientCredentialError as e:
             # If we get here, we're on a non-GHA supported CI platform for trusted
             # publishing, and we have not been given any token, so we can error.
