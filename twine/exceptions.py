@@ -15,6 +15,8 @@
 # limitations under the License.
 import typing as t
 
+import id
+
 
 class TwineException(Exception):
     """Base class for all exceptions raised by twine."""
@@ -180,7 +182,7 @@ class TrustedPublishingFailure(TwineException):
 
     @classmethod
     def from_github_permission_error(
-        cls, identity_error: Exception
+        cls, identity_error: id.GitHubOidcPermissionCredentialError
     ) -> "TrustedPublishingFailure":
         """Return a failure for a GitHub Actions OIDC permission error."""
         return cls(
